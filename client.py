@@ -1,16 +1,18 @@
+import os
 import time
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
-
 
 class FilesObserver:
     # wrapping watchdog methods in this class
     def __init__(self, path_to_folder: str, created_func: callable,
                  deleted_func: callable, modified_func: callable, moved_func: callable):
         # checking that user entered valid callables
-        if created_func is None or deleted_func is None or modified_func is None or moved_func is None:
-            # todo better error handling
-            raise ValueError('Well Well Well......')
+        if created_func is None or deleted_func is None or modified_func is None or moved_func is None \
+                or not os.path.exists(path_to_folder):
+            # todo improve error handling
+            print('Well Well Well......no observing for you!')
+            exit()
         # some important watchdog constants
         patterns = ["*"]
         recursively = True
