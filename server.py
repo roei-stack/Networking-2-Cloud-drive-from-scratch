@@ -15,10 +15,7 @@ def main():
         # accept incoming client
         client_socket, client_address = server.accept()
         print(f'Connection from: {client_address}')
-        data = client_socket.recv(2048)
-        print(f'REQUEST: {data.decode(Utils.ENCODING)}')
-        # todo request
-
+        # todo
         client_socket.close()
 
 

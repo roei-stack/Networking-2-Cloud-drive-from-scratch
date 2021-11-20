@@ -3,7 +3,6 @@ import time
 import socket
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
-
 import Utils
 
 HOST_IP = Utils.HOST_IP
