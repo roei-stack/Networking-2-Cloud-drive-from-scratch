@@ -15,8 +15,8 @@ def main():
         # accept incoming client
         client_socket, client_address = server.accept()
         print(f'Connection from: {client_address}')
-        while True:
-            print(client_socket.recv(Utils.BUFFER).decode())
+        # todo receive and execute all commands
+        client_socket.send(b'A')
         client_socket.close()
 
 

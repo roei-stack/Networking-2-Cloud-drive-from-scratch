@@ -5,12 +5,30 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 import Utils
 
+# send the requests to the server every x seconds
+requests = []
+# the path for out local folder
+LOCAL_DIRECTORY_PATH = './local'
+# how much time to wait on 'connect'
+CONNECTION_TIMEOUT_VAL = 3
+
 
 class FilesObserver:
-    # wrapping watchdog methods in this class
+    """
+     This class is responsible for monitoring changes in a given folder
+     When calling the start function (see below), it executes a given operation every X seconds
+    """
     def __init__(self, path_to_folder: str, created_func: callable,
                  deleted_func: callable, modified_func: callable, moved_func: callable):
-        # checking that user entered valid callables
+        """
+        initiate the class with path to folder and 4 functions
+        :param path_to_folder: path to folder to monitor
+        :param created_func: call this function when we detect that a file was created
+        :param deleted_func: call this function when we detect that a file was deleted
+        :param modified_func: call this function when we detect that a file was modified
+        :param moved_func: call this function when we detect that a file was moved
+        """
+        # check user input is valid callables
         if not os.path.exists(path_to_folder) or \
                 created_func is None or deleted_func is None or modified_func is None or moved_func is None:
             print(f'Error: Invalid path {path_to_folder}, or at least one of the functions may be undefined')
@@ -32,72 +50,106 @@ class FilesObserver:
         self.__observer = Observer()
         self.__observer.schedule(handler, path_to_folder, recursive=recursively)
 
-    def start(self):
+    def start(self, operation: callable, frequency: int):
+        """
+        while watchdog runs in background:
+            wait X seconds
+            do operation()
+        """
         # starting the file's observer previously initiated
         self.__observer.start()
         # this method loops forever and observes for changes until user interrupts it
         # whenever it observes a change, it calls one of the 4 methods we supplied it with
         try:
             while True:
-                time.sleep(1)
+                # wait X seconds
+                time.sleep(frequency)
+                # call operation -> connect to server and send requests
+                operation()
         except KeyboardInterrupt:
             self.__observer.stop()
         self.__observer.join()
 
 
-commands = []
-LOCAL_DIRECTORY_PATH = 'local'
+def talk_to_remote():
+    """
+    Connect to remote and send all requests
+    Then wait for conformation
+    """
+    client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_sock.settimeout(CONNECTION_TIMEOUT_VAL)
+    # connect to host
+    try:
+        client_sock.connect((Utils.HOST_IP, Utils.HOST_PORT))
+    except socket.timeout:
+        # remote server in busy
+        print('server is busy, cannot connect')
+        client_sock.close()
+        return
 
-
-# connect to host
-client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client_sock.connect((Utils.HOST_IP, Utils.HOST_PORT))
+    # sending the number of requests with all commands
+    client_sock.send(str(len(requests)).zfill(2).encode())
+    for request in requests:
+        client_sock.send(request.encode())
+    # temporarily increase the timeout while waiting for confirmation
+    client_sock.settimeout(30)
+    try:
+        # A for ACK
+        if client_sock.recv(1) == b'A':
+            # server acked, success
+            # clean the requests queue and return
+            requests.clear()
+            return
+    except socket.timeout:
+        # server could not complete operation in time
+        print('server had trouble managing requests')
+        exit(-1)
+    finally:
+        client_sock.close()
+    # if we reached here it means the server sent an error code
+    print('unknown error occurred')
+    exit(-1)
 
 
 # here we can modify what the observer will do whenever it detects a change
 def on_created(event):
+    print(f'{event.src_path} has been created')
     # command id => "1"
-    # command format: len(4 bytes) + command_id(1 byte) + path
-    length = len(event.src_path) + 5
-    command = f'{length.to_bytes(4, byteorder="little", signed=True).decode()}1{event.src_path}'
-    commands.append(command)
-    client_sock.send(command.encode())
+    # command format: len(8 characters) + command_id(1 character) + path
+    command = f'{str(len(event.src_path) + 9).zfill(7)}1{event.src_path}'
+    requests.append(command)
 
 
 def on_deleted(event):
+    print(f'{event.src_path} has been deleted')
     # command id => "2"
-    # command format: len(4 bytes) + command_id(1 byte) + path
-    length = len(event.src_path) + 5
-    command = f'{length.to_bytes(4, byteorder="little", signed=True).decode()}2{event.src_path}'
-    commands.append(command)
-    client_sock.send(command.encode())
+    # command format: len(8 characters) + command_id(1 character) + path
+    command = f'{str(len(event.src_path) + 9).zfill(7)}1{event.src_path}'
+    requests.append(command)
 
 
 def on_modified(event):
+    print(f'{event.src_path} has been modified')
     # command id => "3"
-    # ignore when the modified object is a directory
+    # ignore if the modified object is a directory
     if event.is_directory:
         return
-    # command format: len(4 bytes) + command_id(1 byte) + path_size(1 byte) + path + file
+    # command format: len(8 characters) + command_id(1 character) + path_size(3 character) + path + file
     path_length = len(event.src_path)
-    command_length = os.path.getsize(event.src_path) + path_length + 6
+    command_length = os.path.getsize(event.src_path) + path_length + 12
     with open(event.src_path, 'r') as file:
-        command = f'{command_length.to_bytes(4, byteorder="little", signed=True).decode()}3' \
-                  f'{path_length.to_bytes(1, byteorder="little", signed=True).decode()}{event.src_path}{file.read()}'
-        commands.append(command)
-        client_sock.send(command.encode())
+        command = f'{str(command_length).zfill(8)}3{str(path_length).zfill(3)}{event.src_path}{file.read()}'
+        requests.append(command)
 
 
 def on_moved(event):
+    print(f'{"folder" if event.is_directory else "file"} {event.src_path} was moved to {event.dest_path}')
     # command id => "4"
-    # command format: len(4 bytes) + command_id(1 byte) + old_path_size(1 byte) + old_path + new_path
+    # command format: len(8 characters) + command_id(1 character) + old_path_size(3 characters) + old_path + new_path
     old_path_length = len(event.src_path)
-    command_length = 6 + old_path_length + len(event.dest_path)
-    command = f'{command_length.to_bytes(4, byteorder="little", signed=True).decode()}4' \
-              f'{old_path_length.to_bytes(1, byteorder="little", signed=True).decode()}' \
-              f'{event.src_path}{event.dest_path}'
-    commands.append(command)
-    client_sock.send(command.encode())
+    command_length = 12 + old_path_length + len(event.dest_path)
+    command = f'{str(command_length).zfill(8)}4{str(old_path_length).zfill(3)}{event.src_path}{event.dest_path}'
+    requests.append(command)
 
 
 # start simple -> 1 server and 1 client
@@ -105,9 +157,9 @@ def main():
     # start observer
     # make sure to call Observer in right order => path, create, delete, modified, moved
     observer = FilesObserver(LOCAL_DIRECTORY_PATH, on_created, on_deleted, on_modified, on_moved)
-    observer.start()
+    # every 10 seconds client attempts to connect
+    observer.start(talk_to_remote, 10)
 
 
 if __name__ == '__main__':
     main()
-    print(commands)
