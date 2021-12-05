@@ -3,7 +3,7 @@ import time
 import socket
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
-import Utils
+import Utils as U
 
 # send the requests to the server every x seconds
 requests = []
@@ -18,6 +18,7 @@ class FilesObserver:
      This class is responsible for monitoring changes in a given folder
      When calling the start function (see below), it executes a given operation every X seconds
     """
+
     def __init__(self, path_to_folder: str, created_func: callable,
                  deleted_func: callable, modified_func: callable, moved_func: callable):
         """
@@ -31,9 +32,10 @@ class FilesObserver:
         # check user input is valid callables
         if not os.path.exists(path_to_folder) or \
                 created_func is None or deleted_func is None or modified_func is None or moved_func is None:
-            print(f'Error: Invalid path {path_to_folder}, or at least one of the functions may be undefined')
-            print('aborted')
+            print(f'Error: Path "{path_to_folder}" may be invalid, or at least one of the functions is undefined')
+            print('Aborted')
             exit(-1)
+
         # some important watchdog constants
         patterns = ["*"]
         recursively = True
@@ -80,15 +82,16 @@ def talk_to_remote():
     client_sock.settimeout(CONNECTION_TIMEOUT_VAL)
     # connect to host
     try:
-        client_sock.connect((Utils.HOST_IP, Utils.HOST_PORT))
+        client_sock.connect((U.HOST_IP, U.HOST_PORT))
     except socket.timeout:
         # remote server in busy
-        print('server is busy, cannot connect')
+        print('Error: server is busy, cannot connect')
         client_sock.close()
         return
 
     # sending the number of requests with all commands
     client_sock.send(str(len(requests)).zfill(2).encode())
+    # todo make thread safe
     for request in requests:
         client_sock.send(request.encode())
     # temporarily increase the timeout while waiting for confirmation
@@ -102,12 +105,12 @@ def talk_to_remote():
             return
     except socket.timeout:
         # server could not complete operation in time
-        print('server had trouble managing requests')
+        print('Error: server had trouble managing requests')
         exit(-1)
     finally:
         client_sock.close()
     # if we reached here it means the server sent an error code
-    print('unknown error occurred')
+    print('Error: unknown error occurred')
     exit(-1)
 
 
@@ -116,7 +119,8 @@ def on_created(event):
     print(f'{event.src_path} has been created')
     # command id => "1"
     # command format: len(8 characters) + command_id(1 character) + path
-    command = f'{str(len(event.src_path) + 9).zfill(7)}1{event.src_path}'
+    command = f'{str(len(event.src_path) + U.COMMAND_LEN_SIZE + U.COMMAND_ID_LEN).zfill(U.COMMAND_LEN_SIZE)}1' \
+              f'{event.src_path}'
     requests.append(command)
 
 
@@ -124,7 +128,8 @@ def on_deleted(event):
     print(f'{event.src_path} has been deleted')
     # command id => "2"
     # command format: len(8 characters) + command_id(1 character) + path
-    command = f'{str(len(event.src_path) + 9).zfill(7)}1{event.src_path}'
+    command = f'{str(len(event.src_path) + U.COMMAND_LEN_SIZE + U.COMMAND_ID_LEN).zfill(U.COMMAND_LEN_SIZE)}2' \
+              f'{event.src_path}'
     requests.append(command)
 
 
@@ -136,9 +141,11 @@ def on_modified(event):
         return
     # command format: len(8 characters) + command_id(1 character) + path_size(3 character) + path + file
     path_length = len(event.src_path)
-    command_length = os.path.getsize(event.src_path) + path_length + 12
+    command_length = os.path.getsize(event.src_path) + path_length \
+                     + U.COMMAND_LEN_SIZE + U.COMMAND_ID_LEN + U.PATH_LEN_SIZE
     with open(event.src_path, 'r') as file:
-        command = f'{str(command_length).zfill(8)}3{str(path_length).zfill(3)}{event.src_path}{file.read()}'
+        command = f'{str(command_length).zfill(U.COMMAND_LEN_SIZE)}3' \
+                  f'{str(path_length).zfill(U.PATH_LEN_SIZE)}{event.src_path}{file.read()}'
         requests.append(command)
 
 
@@ -147,8 +154,9 @@ def on_moved(event):
     # command id => "4"
     # command format: len(8 characters) + command_id(1 character) + old_path_size(3 characters) + old_path + new_path
     old_path_length = len(event.src_path)
-    command_length = 12 + old_path_length + len(event.dest_path)
-    command = f'{str(command_length).zfill(8)}4{str(old_path_length).zfill(3)}{event.src_path}{event.dest_path}'
+    command_length = U.PATH_LEN_SIZE + U.COMMAND_ID_LEN + U.COMMAND_LEN_SIZE + old_path_length + len(event.dest_path)
+    command = f'{str(command_length).zfill(U.COMMAND_LEN_SIZE)}4' \
+              f'{str(old_path_length).zfill(U.PATH_LEN_SIZE)}{event.src_path}{event.dest_path}'
     requests.append(command)
 
 
