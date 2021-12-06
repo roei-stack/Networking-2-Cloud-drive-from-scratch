@@ -166,7 +166,7 @@ def main():
     # make sure to call Observer in right order => path, create, delete, modified, moved
     observer = FilesObserver(LOCAL_DIRECTORY_PATH, on_created, on_deleted, on_modified, on_moved)
     # every 10 seconds client attempts to connect
-    observer.start(talk_to_remote, 10)
+    observer.start(talk_to_remote, 20)
 
 
 if __name__ == '__main__':
