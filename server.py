@@ -7,7 +7,18 @@ REMOTE_DIRECTORY_PATH = './remote'
 
 
 def parse_command(command: str):
-    pass
+    # the first character is the command type
+    cid = command[0]
+    if cid == '1':
+        pass
+    elif cid == '2':
+        pass
+    elif cid == '3':
+        pass
+    elif cid == '4':
+        pass
+    else:
+        raise ValueError(f'{cid} is not a valid command id')
 
 
 def read_x_bytes(sock: socket.socket, x: int) -> str:
@@ -35,7 +46,7 @@ def receive_commands(sock: socket.socket) -> list:
     commands = []
     # the first 2 bytes are the amount of commands
     size = int(read_x_bytes(sock, 2))
-    for counter in range(size):
+    for _ in range(size):
         # read the command's length, fixed to 8 bytes
         length = int(read_x_bytes(sock, U.COMMAND_LEN_SIZE))
         # get the command
@@ -53,7 +64,7 @@ def main():
         client_socket, client_address = server.accept()
         print(f'Connection from: {client_address}')
         commands = receive_commands(client_socket)
-        # todo receive and execute all commands
+        # todo execute all commands
         client_socket.send(b'A')
         client_socket.close()
 

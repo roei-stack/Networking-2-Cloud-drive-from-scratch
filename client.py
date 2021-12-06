@@ -11,6 +11,7 @@ requests = []
 LOCAL_DIRECTORY_PATH = './local'
 # how much time to wait on 'connect'
 CONNECTION_TIMEOUT_VAL = 3
+CONFIRMATION_TIMEOUT = 30
 
 
 class FilesObserver:
@@ -95,7 +96,7 @@ def talk_to_remote():
     for request in requests:
         client_sock.send(request.encode())
     # temporarily increase the timeout while waiting for confirmation
-    client_sock.settimeout(30)
+    client_sock.settimeout(CONFIRMATION_TIMEOUT)
     try:
         # A for ACK
         if client_sock.recv(1) == b'A':
