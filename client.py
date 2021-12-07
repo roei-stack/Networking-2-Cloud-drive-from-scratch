@@ -5,6 +5,11 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 import Utils as U
 
+# This Unique id is for new clients
+CLIENT_ID = '0' * 128
+# This is the client's serial number in case he connects from more than 1 pc
+# -1 means this is a new computer
+SUB_CLIENT_ID = -1
 # send the requests to the server every x seconds
 requests = []
 # the path for out local folder

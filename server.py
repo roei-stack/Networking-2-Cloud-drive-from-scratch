@@ -1,9 +1,20 @@
 import socket
+import random
+import sys
 
 import Utils as U
 
 QUEUE_SIZE = 5
 REMOTE_DIRECTORY_PATH = './remote'
+
+
+def generate_client_id() -> str:
+    length = 128
+    characters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+                  'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
+                  'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7',
+                  '8', '9']
+    return ''.join(random.choice(characters) for _ in range(length))
 
 
 def parse_command(command: str):
@@ -35,7 +46,7 @@ def read_x_bytes(sock: socket.socket, x: int) -> str:
     return buff.decode()
 
 
-def receive_commands(sock: socket.socket) -> list:
+def receive_requests(sock: socket.socket) -> (str, int, list):
     """
     Parse the message sent to a list of commands according to the sending protocol
     THE PROTOCOL: "number_of_commands(2 bytes) + commands"
@@ -43,6 +54,8 @@ def receive_commands(sock: socket.socket) -> list:
     :param sock: the socket we will read from
     :return: a list of commands
     """
+    client_id = read_x_bytes(sock, 128)
+    sub_client_serial = int(read_x_bytes(sock, 1))
     commands = []
     # the first 2 bytes are the amount of commands
     size = int(read_x_bytes(sock, 2))
@@ -63,8 +76,10 @@ def main():
         # accept incoming client
         client_socket, client_address = server.accept()
         print(f'Connection from: {client_address}')
-        commands = receive_commands(client_socket)
+        commands = receive_requests(client_socket)
+        print(f'requests -> {commands}')
         # todo execute all commands
+        # todo push updates to client
         client_socket.send(b'A')
         client_socket.close()
 
