@@ -3,17 +3,18 @@ import time
 import socket
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
+
 import Utils as U
 
 # This Unique id is for new clients
-CLIENT_ID = '0' * 128
+USER_ID = U.DEFAULT_USER_ID
 # This is the client's serial number in case he connects from more than 1 pc
 # -1 means this is a new computer
-SUB_CLIENT_ID = -1
+CLIENT_ID = U.DEFAULT_CLIENT_ID
 # send the requests to the server every x seconds
 requests = []
 # the path for out local folder
-LOCAL_DIRECTORY_PATH = './local'
+LOCAL_DIRECTORY_PATH = os.path.abspath('local')
 # how much time to wait on 'connect'
 CONNECTION_TIMEOUT_VAL = 3
 CONFIRMATION_TIMEOUT = 30
@@ -79,24 +80,27 @@ class FilesObserver:
         self.__observer.join()
 
 
+def connect_tcp(sock: socket.socket, timeout: int):
+    sock.settimeout(CONNECTION_TIMEOUT_VAL)
+    # connect to host
+    try:
+        sock.connect((U.HOST_IP, U.HOST_PORT))
+    except socket.timeout:
+        # remotes server in busy
+        print('Error: server is busy, cannot connect')
+        sock.close()
+        return
+
+
 def talk_to_remote():
     """
-    Connect to remote and send all requests
+    Connect to remotes and send all requests
     Then wait for conformation
     """
     client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_sock.settimeout(CONNECTION_TIMEOUT_VAL)
-    # connect to host
-    try:
-        client_sock.connect((U.HOST_IP, U.HOST_PORT))
-    except socket.timeout:
-        # remote server in busy
-        print('Error: server is busy, cannot connect')
-        client_sock.close()
-        return
-
-    # sending the number of requests with all commands
-    client_sock.send(str(len(requests)).zfill(2).encode())
+    connect_tcp(client_sock, CONNECTION_TIMEOUT_VAL)
+    # sending user_id + client_id + the number of requests + all commands
+    client_sock.send(USER_ID.encode() + str(CLIENT_ID).encode() + str(len(requests)).zfill(2).encode())
     # todo make thread safe
     for request in requests:
         client_sock.send(request.encode())
@@ -166,12 +170,37 @@ def on_moved(event):
     requests.append(command)
 
 
+def new_user():
+    # this function modifies global variables
+    global USER_ID, CLIENT_ID
+    # connect to remote
+    client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    connect_tcp(client_sock, 1000)
+    # build a command from: user_id + client_id + 0 commands => id + '-1' + '00'
+    client_sock.send(f'{U.DEFAULT_USER_ID}-100'.encode())
+    USER_ID = client_sock.recv(U.USER_ID_LENGTH).decode()
+    CLIENT_ID = 0
+
+
+def new_client():
+    # todo download remote
+    pass
+
+
 # start simple -> 1 server and 1 client
 def main():
+    print('Initializing...')
+    # if new user => receive an id
+    if USER_ID == U.DEFAULT_USER_ID:
+        new_user()
+    # if new client => download remote folder
+    elif CLIENT_ID == U.DEFAULT_CLIENT_ID:
+        new_client()
     # start observer
     # make sure to call Observer in right order => path, create, delete, modified, moved
     observer = FilesObserver(LOCAL_DIRECTORY_PATH, on_created, on_deleted, on_modified, on_moved)
     # every 10 seconds client attempts to connect
+    print('Finished initializing')
     observer.start(talk_to_remote, 20)
 
 
