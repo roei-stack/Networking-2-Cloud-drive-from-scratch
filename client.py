@@ -14,9 +14,9 @@ CLIENT_ID = U.DEFAULT_CLIENT_ID
 requests = []
 # the path for out local folder
 LOCAL_DIRECTORY_PATH = os.path.abspath('local')
+
+
 # how much time to wait on 'connect'
-CONNECTION_TIMEOUT_VAL = 3
-CONFIRMATION_TIMEOUT = 30
 
 
 class FilesObserver:
@@ -80,7 +80,7 @@ class FilesObserver:
 
 
 def connect_tcp(sock: socket.socket, timeout: int):
-    sock.settimeout(CONNECTION_TIMEOUT_VAL)
+    sock.settimeout(timeout)
     # connect to host
     try:
         sock.connect((U.HOST_IP, U.HOST_PORT))
@@ -97,14 +97,14 @@ def talk_to_remote():
     Then wait for conformation
     """
     client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    connect_tcp(client_sock, CONNECTION_TIMEOUT_VAL)
+    connect_tcp(client_sock, U.CONNECTION_TIMEOUT_VAL)
     # sending user_id + client_id + the number of requests + all commands
-    client_sock.send(USER_ID.encode() + str(CLIENT_ID).encode() + str(len(requests)).zfill(2).encode())
+    client_sock.send(USER_ID.encode() + str(CLIENT_ID).zfill(2).encode() + str(len(requests)).zfill(2).encode())
     # todo make thread safe
     for request in requests:
         client_sock.send(request.encode())
     # temporarily increase the timeout while waiting for confirmation
-    client_sock.settimeout(CONFIRMATION_TIMEOUT)
+    client_sock.settimeout(U.SPECIAL_TIMEOUT)
     try:
         # A for ACK
         if client_sock.recv(1) == b'A':
@@ -150,8 +150,8 @@ def on_modified(event):
         return
     # command format: len(8 characters) + command_id(1 character) + path_size(3 character) + path + file
     path_length = len(event.src_path)
-    command_length = os.path.getsize(event.src_path) + path_length \
-                     + U.COMMAND_LEN_SIZE + U.COMMAND_ID_LEN + U.PATH_LEN_SIZE
+    command_length = os.path.getsize(event.src_path) + \
+                     path_length + U.COMMAND_LEN_SIZE + U.COMMAND_ID_LEN + U.PATH_LEN_SIZE
     with open(event.src_path, 'r') as file:
         command = f'{str(command_length).zfill(U.COMMAND_LEN_SIZE)}3' \
                   f'{str(path_length).zfill(U.PATH_LEN_SIZE)}{event.src_path}{file.read()}'
@@ -173,27 +173,28 @@ def new_user():
     # this function modifies global variables
     global USER_ID, CLIENT_ID
     # connect to remote
-    client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    connect_tcp(client_sock, 1000)
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    connect_tcp(client_socket, 1000)
     # build a command from: user_id + client_id + 0 commands => id + '-1' + '00'
-    client_sock.send(f'{U.DEFAULT_USER_ID}{U.DEFAULT_CLIENT_ID}00'.encode())
-    USER_ID = U.read_x_bytes(client_sock, U.USER_ID_LENGTH)
+    client_socket.send(f'{U.DEFAULT_USER_ID}{U.DEFAULT_CLIENT_ID}00'.encode())
+    USER_ID = U.read_x_bytes(client_socket, U.USER_ID_LENGTH)
     CLIENT_ID = 0
-    client_sock.close()
+    client_socket.close()
 
 
 def new_client():
     # this function modifies global variables
     global CLIENT_ID
     # connect to remote
-    client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    connect_tcp(client_sock, 1000)
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    connect_tcp(client_socket, 1000)
     # command: user_id + default_client_id + 0 commands
-    client_sock.send(f'{USER_ID}{U.DEFAULT_CLIENT_ID}00'.encode())
+    client_socket.send(f'{USER_ID}{U.DEFAULT_CLIENT_ID}00'.encode())
     # get client id
-    CLIENT_ID = client_sock.recv(1).decode()
+    CLIENT_ID = U.read_x_bytes(client_socket, 2)
     # download folder
-    U.receive_folder(LOCAL_DIRECTORY_PATH, client_sock)
+    U.receive_folder(LOCAL_DIRECTORY_PATH, client_socket)
+    client_socket.close()
 
 
 # start simple -> 1 server and 1 client

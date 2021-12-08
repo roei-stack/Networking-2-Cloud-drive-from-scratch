@@ -43,7 +43,7 @@ def receive_requests(sock: socket.socket) -> (str, int, list):
     :return: a list of commands
     """
     user_id = U.read_x_bytes(sock, 128)
-    client_id = int(U.read_x_bytes(sock, 1))
+    client_id = int(U.read_x_bytes(sock, 2))
     commands = []
     # the first 2 bytes are the amount of commands
     size = int(U.read_x_bytes(sock, 2))
@@ -108,4 +108,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind((U.HOST_IP, U.HOST_PORT))
+    server.listen(QUEUE_SIZE)
+    client_sock, _ = server.accept()
+    U.send_folder('remotes', client_sock)
+    client_sock.close()
+    #main()
