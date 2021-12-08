@@ -1,10 +1,9 @@
 import os
-import socket
 import random
-import sys
+import socket
 import Utils as U
 
-QUEUE_SIZE = 5
+QUEUE_SIZE = 7
 REMOTE_DIRECTORIES_PATH = 'remotes'
 # this dictionary is the client's database
 users_book = {}
@@ -95,23 +94,17 @@ def main():
             # generate and send id
             user_id = new_user()
             client_socket.send(user_id)
-        # check if a known user connected from a new pc => new client
+        # new client : check if a known user connected from a new pc
         elif client_id == U.DEFAULT_CLIENT_ID:
             new_client(user_id, client_socket)
         else:
-            # normal call
-            print(f'requests -> {commands}')
+            # normal call with existing user id with existing client id
             # todo execute all commands
+            print(f'todo => {commands}')
             # todo push updates to client
             client_socket.send(b'A')
-            client_socket.close()
+        client_socket.close()
 
 
 if __name__ == '__main__':
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((U.HOST_IP, U.HOST_PORT))
-    server.listen(QUEUE_SIZE)
-    client_sock, _ = server.accept()
-    U.send_folder('remotes', client_sock)
-    client_sock.close()
-    #main()
+    main()

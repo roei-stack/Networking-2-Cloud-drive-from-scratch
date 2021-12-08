@@ -79,6 +79,10 @@ class FilesObserver:
         self.__observer.join()
 
 
+def normalize_path_to_local_folder(path: str) -> str:
+    return os.path.relpath(path, LOCAL_DIRECTORY_PATH)
+
+
 def connect_tcp(sock: socket.socket, timeout: int):
     sock.settimeout(timeout)
     # connect to host
@@ -92,6 +96,7 @@ def connect_tcp(sock: socket.socket, timeout: int):
 
 
 def talk_to_remote():
+    print(requests)
     """
     Connect to remotes and send all requests
     Then wait for conformation
@@ -128,8 +133,8 @@ def on_created(event):
     print(f'{event.src_path} has been created')
     # command id => "1"
     # command format: len(8 characters) + command_id(1 character) + path
-    command = f'{str(len(event.src_path) + U.COMMAND_LEN_SIZE + U.COMMAND_ID_LEN).zfill(U.COMMAND_LEN_SIZE)}1' \
-              f'{event.src_path}'
+    command = f'{str(len(normalize_path_to_local_folder(event.src_path)) + U.COMMAND_LEN_SIZE + U.COMMAND_ID_LEN).zfill(U.COMMAND_LEN_SIZE)}' \
+              f'1{normalize_path_to_local_folder(event.src_path)}'
     requests.append(command)
 
 
@@ -137,8 +142,8 @@ def on_deleted(event):
     print(f'{event.src_path} has been deleted')
     # command id => "2"
     # command format: len(8 characters) + command_id(1 character) + path
-    command = f'{str(len(event.src_path) + U.COMMAND_LEN_SIZE + U.COMMAND_ID_LEN).zfill(U.COMMAND_LEN_SIZE)}2' \
-              f'{event.src_path}'
+    command = f'{str(len(normalize_path_to_local_folder(event.src_path)) + U.COMMAND_LEN_SIZE + U.COMMAND_ID_LEN).zfill(U.COMMAND_LEN_SIZE)}' \
+              f'1{normalize_path_to_local_folder(event.src_path)}'
     requests.append(command)
 
 
@@ -149,12 +154,13 @@ def on_modified(event):
     if event.is_directory:
         return
     # command format: len(8 characters) + command_id(1 character) + path_size(3 character) + path + file
-    path_length = len(event.src_path)
+    path = normalize_path_to_local_folder(event.src_path)
+    path_length = len(path)
     command_length = os.path.getsize(event.src_path) + \
                      path_length + U.COMMAND_LEN_SIZE + U.COMMAND_ID_LEN + U.PATH_LEN_SIZE
     with open(event.src_path, 'r') as file:
         command = f'{str(command_length).zfill(U.COMMAND_LEN_SIZE)}3' \
-                  f'{str(path_length).zfill(U.PATH_LEN_SIZE)}{event.src_path}{file.read()}'
+                  f'{str(path_length).zfill(U.PATH_LEN_SIZE)}{path}{file.read()}'
         requests.append(command)
 
 
@@ -162,10 +168,12 @@ def on_moved(event):
     print(f'{"folder" if event.is_directory else "file"} {event.src_path} was moved to {event.dest_path}')
     # command id => "4"
     # command format: len(8 characters) + command_id(1 character) + old_path_size(3 characters) + old_path + new_path
-    old_path_length = len(event.src_path)
-    command_length = U.PATH_LEN_SIZE + U.COMMAND_ID_LEN + U.COMMAND_LEN_SIZE + old_path_length + len(event.dest_path)
+    old_path = normalize_path_to_local_folder(event.src_path)
+    new_path = normalize_path_to_local_folder(event.dest_path)
+    old_path_length = len(old_path)
+    command_length = U.PATH_LEN_SIZE + U.COMMAND_ID_LEN + U.COMMAND_LEN_SIZE + old_path_length + len(new_path)
     command = f'{str(command_length).zfill(U.COMMAND_LEN_SIZE)}4' \
-              f'{str(old_path_length).zfill(U.PATH_LEN_SIZE)}{event.src_path}{event.dest_path}'
+              f'{str(old_path_length).zfill(U.PATH_LEN_SIZE)}{old_path}{new_path}'
     requests.append(command)
 
 
