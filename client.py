@@ -176,14 +176,24 @@ def new_user():
     client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     connect_tcp(client_sock, 1000)
     # build a command from: user_id + client_id + 0 commands => id + '-1' + '00'
-    client_sock.send(f'{U.DEFAULT_USER_ID}-100'.encode())
-    USER_ID = client_sock.recv(U.USER_ID_LENGTH).decode()
+    client_sock.send(f'{U.DEFAULT_USER_ID}{U.DEFAULT_CLIENT_ID}00'.encode())
+    USER_ID = U.read_x_bytes(client_sock, U.USER_ID_LENGTH)
     CLIENT_ID = 0
+    client_sock.close()
 
 
 def new_client():
-    # todo download remote
-    pass
+    # this function modifies global variables
+    global CLIENT_ID
+    # connect to remote
+    client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    connect_tcp(client_sock, 1000)
+    # command: user_id + default_client_id + 0 commands
+    client_sock.send(f'{USER_ID}{U.DEFAULT_CLIENT_ID}00'.encode())
+    # get client id
+    CLIENT_ID = client_sock.recv(1).decode()
+    # download folder
+    U.receive_folder(LOCAL_DIRECTORY_PATH, client_sock)
 
 
 # start simple -> 1 server and 1 client

@@ -68,9 +68,16 @@ def new_user() -> bytes:
     return user_id.encode()
 
 
-def new_client(user_id: str):
+def new_client(user_id: str, client: socket.socket):
     remote_folder_path, clients = users_book[user_id]
-    # downloading the client's remote
+    # getting a new client id
+    client_id = len(clients)
+    # adding the new client to the list
+    clients.append([])
+    # send the client id
+    client.send(str(client_id).encode())
+    # send the remote folder
+    U.send_folder(remote_folder_path, client)
 
 
 def main():
@@ -90,13 +97,14 @@ def main():
             client_socket.send(user_id)
         # check if a known user connected from a new pc => new client
         elif client_id == U.DEFAULT_CLIENT_ID:
-            new_client(user_id)
-
-        print(f'requests -> {commands}')
-        # todo execute all commands
-        # todo push updates to client
-        client_socket.send(b'A')
-        client_socket.close()
+            new_client(user_id, client_socket)
+        else:
+            # normal call
+            print(f'requests -> {commands}')
+            # todo execute all commands
+            # todo push updates to client
+            client_socket.send(b'A')
+            client_socket.close()
 
 
 if __name__ == '__main__':
