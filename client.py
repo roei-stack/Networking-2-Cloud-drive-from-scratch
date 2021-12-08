@@ -3,7 +3,6 @@ import time
 import socket
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
-
 import Utils as U
 
 # This Unique id is for new clients

@@ -2,11 +2,10 @@ import os
 import socket
 import random
 import sys
-
 import Utils as U
 
 QUEUE_SIZE = 5
-REMOTE_DIRECTORIES_PATH = os.path.abspath('remotes')
+REMOTE_DIRECTORIES_PATH = 'remotes'
 # this dictionary is the client's database
 users_book = {}
 
@@ -35,20 +34,6 @@ def parse_command(command: str):
         raise ValueError(f'{cid} is not a valid command id')
 
 
-def read_x_bytes(sock: socket.socket, x: int) -> str:
-    """
-    Reads x bytes from tcp socket, and converts to string
-    """
-    buff = bytearray(x)
-    pos = 0
-    while pos < x:
-        cr = sock.recv_into(memoryview(buff)[pos:])
-        if cr == 0:
-            raise EOFError
-        pos += cr
-    return buff.decode()
-
-
 def receive_requests(sock: socket.socket) -> (str, int, list):
     """
     Parse the message sent to a list of commands according to the sending protocol
@@ -57,16 +42,16 @@ def receive_requests(sock: socket.socket) -> (str, int, list):
     :param sock: the socket we will read from
     :return: a list of commands
     """
-    user_id = read_x_bytes(sock, 128)
-    client_id = int(read_x_bytes(sock, 1))
+    user_id = U.read_x_bytes(sock, 128)
+    client_id = int(U.read_x_bytes(sock, 1))
     commands = []
     # the first 2 bytes are the amount of commands
-    size = int(read_x_bytes(sock, 2))
+    size = int(U.read_x_bytes(sock, 2))
     for _ in range(size):
         # read the command's length, fixed to 8 bytes
-        length = int(read_x_bytes(sock, U.COMMAND_LEN_SIZE))
+        length = int(U.read_x_bytes(sock, U.COMMAND_LEN_SIZE))
         # get the command
-        commands.append(read_x_bytes(sock, length - U.COMMAND_LEN_SIZE))
+        commands.append(U.read_x_bytes(sock, length - U.COMMAND_LEN_SIZE))
     return user_id, client_id, commands
 
 
@@ -86,7 +71,6 @@ def new_user() -> bytes:
 def new_client(user_id: str):
     remote_folder_path, clients = users_book[user_id]
     # downloading the client's remote
-
 
 
 def main():
